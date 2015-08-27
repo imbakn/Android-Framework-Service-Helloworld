@@ -1,0 +1,339 @@
+#! /bin/bash
+if [[ $# -ne 1 ]]
+then
+	echo "usage : ./gen-Service service name . "
+	exit 0;
+fi
+
+ANDROIDMK=Android.mk
+CLIENT=client
+SERVICE=service
+LIB=lib
+INCLUDE=include
+SUFFIX=Service
+
+smkdir()
+{
+	if [ ! -d $1 ]
+	then
+		mkdir $1;
+	fi
+}
+
+
+smkdir $1$SUFFIX
+cd $1$SUFFIX
+
+smkdir $CLIENT
+smkdir $SERVICE
+smkdir $LIB
+smkdir $INCLUDE
+
+
+FIRSTBIGNAME=`echo $1 | sed 's/\<[a-z]/\U&/g'`
+ALLBIGNAME=`echo $1 | tr [a-z] [A-Z]`
+ALLSMALLNAME=`echo $1 | tr [A-Z] [a-z]`
+SSERVICE=Service
+SERVICENAME=$FIRSTBIGNAME$SSERVICE
+
+#生成根目录Android.mk
+echo 'include $(all-subdir-makefiles)' > $ANDROIDMK
+
+#################################################################################################################
+#进入include文件
+cd $INCLUDE
+
+echo "#ifndef I$ALLBIGNAME""_SERVICE_H
+#define I$ALLBIGNAME""_SERVICE_H
+
+#include <stdint.h>
+#include <sys/types.h>
+
+#include <utils/RefBase.h>
+#include <binder/IInterface.h>
+#include <binder/Parcel.h>
+
+namespace android {
+
+	class I$SERVICENAME: public IInterface {
+
+		public:
+		//服务接口宏
+		DECLARE_META_INTERFACE($SERVICENAME);
+		//服务函数
+		virtual status_t $ALLSMALLNAME(const char *str) = 0;
+
+	};
+
+
+	class Bn$SERVICENAME : public BnInterface<I$SERVICENAME>
+	{
+		public:
+			virtual status_t onTransact(uint32_t code,const Parcel& data, Parcel * reply, uint32_t flags = 0);
+	};
+} ;//namespace android
+#endif //I$ALLBIGNAME""_SERVICE_H" > I$SERVICENAME.h
+
+#################################################################################################################
+echo "#ifndef $ALLBIGNAME""_SERVICE_H
+#define $ALLBIGNAME""_SERVICE_H
+
+#include <binder/Parcel.h>
+#include <utils/Log.h>
+#include <include/I$SERVICENAME.h>
+
+namespace android {
+
+	class $SERVICENAME : public Bn$SERVICENAME
+	{
+		public:
+			static void instantiate();
+			virtual status_t $ALLSMALLNAME(const char* str);
+			virtual status_t onTransact(uint32_t code,const Parcel& data, Parcel * reply, uint32_t flags );
+		private:
+			$SERVICENAME();
+			virtual ~$SERVICENAME();
+	};
+};
+
+#endif //$ALLBIGNAME""_SERVICE_H" > $SERVICENAME.h
+
+#################################################################################################################
+cd -
+
+#进入client文件
+cd $CLIENT
+#################################################################################################################
+
+echo "#define LOG_TAG \"main_$ALLSMALLNAME""client\"
+
+#include <binder/IPCThreadState.h>
+#include <binder/ProcessState.h>
+#include <binder/IServiceManager.h>
+#include <utils/Log.h>
+#include <utils/RefBase.h>
+
+#include <include/$SERVICENAME.h>
+
+using namespace android;
+
+int main(int argc,char ** argv)
+{
+	ALOGI(\"$SERVICENAME client is now starting\");
+
+	sp<IServiceManager> sm = defaultServiceManager();
+	sp<IBinder> b;
+	sp<I$SERVICENAME> s$SERVICENAME;
+	
+	do {
+		b = sm->getService(String16(\"android.apps.I$SERVICENAME\"));
+		if(b != 0)
+			break;
+		usleep(500*1000);
+	}while(true);
+	
+	s$SERVICENAME = interface_cast<I$SERVICENAME>(b);
+	s$SERVICENAME->$ALLSMALLNAME(\"hello ,world\");
+
+	return 0;
+}" > main_$ALLSMALLNAME"client".cpp
+#################################################################################################################
+
+echo "LOCAL_PATH:= \$(call my-dir)
+include \$(CLEAR_VARS)
+
+LOCAL_SRC_FILES:= \\
+	main_$ALLSMALLNAME""client.cpp
+
+LOCAL_SHARED_LIBRARIES:= \\
+	lib$ALLSMALLNAME \\
+	libutils \\
+	libbinder
+
+LOCAL_C_INCLUDES += \\
+	\$(LOCAL_PATH)/../
+
+LOCAL_MODULE:=$ALLSMALLNAME""client
+
+LOCAL_REQUIRED_MODULES := lib$ALLSMALLNAME
+
+include \$(BUILD_EXECUTABLE)" > $ANDROIDMK
+
+
+#################################################################################################################
+cd -
+
+#进入service文件
+cd  $SERVICE
+#################################################################################################################
+echo "#define LOG_TAG \"main_$ALLSMALLNAME""service\"
+
+#include <binder/IPCThreadState.h>
+#include <binder/ProcessState.h>
+#include <binder/IServiceManager.h>
+#include <utils/Log.h>
+
+#include <include/$SERVICENAME.h>
+
+using namespace android;
+
+int main(int argc,char ** argv)
+{
+	$SERVICENAME::instantiate();
+	ProcessState::self()->startThreadPool();
+
+	IPCThreadState::self()->joinThreadPool();
+	return 0;
+}" > main_$ALLSMALLNAME"service".cpp
+
+#################################################################################################################
+echo "LOCAL_PATH:= \$(call my-dir)
+include \$(CLEAR_VARS)
+
+LOCAL_SRC_FILES:= \\
+	main_$ALLSMALLNAME""service.cpp
+
+LOCAL_SHARED_LIBRARIES:= \\
+	lib$ALLSMALLNAME \\
+	libutils \\
+	libbinder
+
+LOCAL_C_INCLUDES += \\
+	\$(LOCAL_PATH)/../
+
+LOCAL_MODULE:=$ALLSMALLNAME""service
+
+LOCAL_REQUIRED_MODULES := lib$ALLSMALLNAME
+
+include \$(BUILD_EXECUTABLE)" >  $ANDROIDMK
+
+#################################################################################################################
+cd -
+
+#进入lib文件
+cd $LIB
+#################################################################################################################
+echo "#include <stdint.h>
+#include <sys/types.h>
+
+#include <include/I$SERVICENAME.h>
+
+namespace android {
+
+enum {
+	HW_$ALLBIGNAME = IBinder::FIRST_CALL_TRANSACTION,
+};
+
+class Bp$SERVICENAME : public BpInterface<I$SERVICENAME>
+{
+	public:
+	Bp$SERVICENAME(const sp<IBinder>& impl)
+		:BpInterface<I$SERVICENAME>(impl) {}
+
+	status_t $ALLSMALLNAME(const char *str)
+	{
+		Parcel data,reply;
+		data.writeInterfaceToken(I$SERVICENAME::getInterfaceDescriptor());
+		data.writeCString(str);
+		status_t status = remote()->transact(HW_$ALLBIGNAME,data,&reply);
+		if(status != NO_ERROR)
+		{
+			ALOGE(\"print $ALLSMALLNAME error %s\",strerror(-status));
+		}
+		else
+			status = reply.readInt32();
+		return status;
+	}
+};
+
+IMPLEMENT_META_INTERFACE($SERVICENAME,\"android.apps.I$SERVICENAME\");
+
+status_t Bn$SERVICENAME::onTransact(uint32_t code,const Parcel& data, Parcel * reply, uint32_t flags )
+{
+	switch(code)
+	{
+		case HW_$ALLBIGNAME:{
+			//确认为正确的服务请求
+			CHECK_INTERFACE(I$SERVICENAME,data,reply);
+			const char *str;
+			//读取来自服务端的字符串
+			str = data.readCString();
+			//调用输出方法
+			reply->writeInt32($ALLSMALLNAME(str));
+			return NO_ERROR;
+			
+		}break;
+		default:
+			return BBinder::onTransact(code,data,reply,flags);
+
+	}
+}
+};" > I$SERVICENAME.cpp
+
+
+#################################################################################################################
+echo "#include <binder/IServiceManager.h>
+#include <binder/IPCThreadState.h>
+#include <include/$SERVICENAME.h>
+#include <utils/Log.h>
+
+namespace android {
+
+	void $SERVICENAME::instantiate(){
+		defaultServiceManager()->addService(
+			String16(\"android.apps.I$SERVICENAME\"),new $SERVICENAME());
+	}
+
+	status_t $SERVICENAME::$ALLSMALLNAME(const char* str)
+	{
+		ALOGI(\"%s\n\",str);
+		printf(\"%s\n\",str);
+		return NO_ERROR;
+	}
+	
+	$SERVICENAME::$SERVICENAME()
+	{
+		ALOGI(\"$SERVICENAME is created\");
+	}
+
+	$SERVICENAME::~$SERVICENAME()
+	{
+		ALOGI(\"$SERVICENAME is destroyed\");
+	}
+
+	status_t $SERVICENAME::onTransact(uint32_t code,const Parcel& data, Parcel * reply, uint32_t flags )
+	{
+		return Bn$SERVICENAME::onTransact(code,data,reply,flags);
+	}
+
+};" > $SERVICENAME.cpp
+
+
+#################################################################################################################
+echo "LOCAL_PATH:= \$(call my-dir)
+include \$(CLEAR_VARS)
+
+LOCAL_SRC_FILES:= \\
+	I$SERVICENAME.cpp \\
+	$SERVICENAME.cpp
+
+
+LOCAL_SHARED_LIBRARIES:= \\
+	libcutils \\
+	libutils \\
+	libbinder
+
+LOCAL_C_INCLUDES += \\
+	\$(LOCAL_PATH)/../
+
+LOCAL_MODULE:=lib$ALLSMALLNAME
+
+include \$(BUILD_SHARED_LIBRARY)" > $ANDROIDMK
+
+
+#################################################################################################################
+cd -
+
+
+
+
