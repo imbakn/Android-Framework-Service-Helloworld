@@ -7,7 +7,8 @@ LOCAL_SRC_FILES:= \
 LOCAL_SHARED_LIBRARIES:= \
 	libhelloworld \
 	libutils \
-	libbinder
+	libbinder \
+	liblog
 
 LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH)/../
